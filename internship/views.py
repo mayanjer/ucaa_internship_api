@@ -16,13 +16,9 @@ from .serializers import (
     SupervisorProfileSerializer,
 )
 
-# --------------------------------------------------------------------------
-# Permissions
-# --------------------------------------------------------------------------
-
 
 class IsIntern(permissions.BasePermission):
-    """Grants access only to authenticated users who have an InternProfile."""
+   
 
     message = "Only interns can perform this action."
 
@@ -35,7 +31,7 @@ class IsIntern(permissions.BasePermission):
 
 
 class IsSupervisor(permissions.BasePermission):
-    """Grants access only to authenticated users who have a SupervisorProfile."""
+    
 
     message = "Only supervisors can perform this action."
 
@@ -48,7 +44,7 @@ class IsSupervisor(permissions.BasePermission):
 
 
 class IsAdminOrSupervisor(permissions.BasePermission):
-    """Grants access to Django staff/admin users or authenticated supervisors."""
+    
 
     message = "Only administrators or supervisors can perform this action."
 
@@ -61,10 +57,7 @@ class IsAdminOrSupervisor(permissions.BasePermission):
 
 
 class IsAdminOrSelf(permissions.BasePermission):
-    """
-    Object-level permission for profile viewsets: Django staff/admins may act on
-    any profile, while a profile's own owner may view/update only their own record.
-    """
+   
 
     def has_object_permission(self, request, view, obj):
         if request.user.is_staff:
@@ -73,10 +66,7 @@ class IsAdminOrSelf(permissions.BasePermission):
 
 
 class IsAssignmentOwnerSupervisor(permissions.BasePermission):
-    """
-    Object-level permission restricting mutation of an Assignment to the
-    supervisor who created it (or a Django staff/admin user).
-    """
+   
 
     message = "Only the supervisor who created this assignment can modify it."
 
@@ -96,22 +86,10 @@ class IsAssignmentOwnerSupervisor(permissions.BasePermission):
             and obj.created_by_supervisor_id == supervisor_profile.id
         )
 
-
-# --------------------------------------------------------------------------
 # Profile management
-# --------------------------------------------------------------------------
-
 
 class SupervisorProfileViewSet(viewsets.ModelViewSet):
-    """
-    Manages Supervisor accounts.
-
-    - Creation is restricted to Django administrators (HR & Administration
-      staff onboarding new supervisors).
-    - Any authenticated user may browse the supervisor directory.
-    - Only an administrator or the supervisor themselves may update/delete
-      their own record.
-    """
+    
 
     queryset = SupervisorProfile.objects.select_related("user").all()
     serializer_class = SupervisorProfileSerializer
@@ -135,15 +113,7 @@ class SupervisorProfileViewSet(viewsets.ModelViewSet):
 
 
 class InternProfileViewSet(viewsets.ModelViewSet):
-    """
-    Manages Intern accounts.
 
-    - Creation is allowed for Django administrators, as well as supervisors
-      onboarding interns into their own directorate.
-    - Any authenticated user may browse the intern directory.
-    - Only an administrator or the intern themselves may update/delete
-      their own record.
-    """
 
     queryset = InternProfile.objects.select_related("user", "supervisor__user").all()
     serializer_class = InternProfileSerializer
@@ -169,8 +139,6 @@ class InternProfileViewSet(viewsets.ModelViewSet):
         user = self.request.user
         supervisor_profile = getattr(user, "supervisor_profile", None)
 
-        # A supervisor (as opposed to a Django admin) may only onboard interns
-        # into their own directorate, and defaults to supervising them directly.
         if supervisor_profile is not None and not user.is_staff:
             requested_directorate = serializer.validated_data.get("directorate")
             if requested_directorate and requested_directorate != supervisor_profile.directorate:
@@ -183,9 +151,7 @@ class InternProfileViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 
-# --------------------------------------------------------------------------
-# Attendance & meals
-# --------------------------------------------------------------------------
+
 
 
 class AttendanceViewSet(
@@ -194,10 +160,7 @@ class AttendanceViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    """
-    Daily clock-in records. Records are immutable once created (no update or
-    delete) to preserve an accurate attendance audit trail.
-    """
+   
 
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -227,8 +190,7 @@ class AttendanceViewSet(
         return queryset.none()
 
     def perform_create(self, serializer):
-        # A unique_together race between two near-simultaneous requests is
-        # caught here and surfaced as a clean 400 instead of a 500.
+       
         try:
             serializer.save()
         except IntegrityError:
@@ -241,11 +203,7 @@ class MealAttendanceViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    """
-    Daily meal log records. Strictly one log per intern per calendar date;
-    a duplicate attempt is rejected with a 400 Bad Request. Records are
-    immutable once created (no update or delete).
-    """
+
 
     serializer_class = MealAttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -283,23 +241,9 @@ class MealAttendanceViewSet(
             raise serializers.ValidationError("You have already logged a meal for today.")
 
 
-# --------------------------------------------------------------------------
-# Assignments
-# --------------------------------------------------------------------------
-
 
 class AssignmentViewSet(viewsets.ModelViewSet):
-    """
-    Manages assignments created by supervisors for interns in their directorate.
-
-    - `create`: supervisors only, restricted to their own directorate's interns.
-    - `update` / `partial_update` / `destroy`: restricted to the creating
-      supervisor (or a Django admin).
-    - `submit` (POST /assignments/{id}/submit/): the assigned intern moves
-      the assignment from Pending to Submitted.
-    - `review` (POST /assignments/{id}/review/): the creating supervisor
-      moves the assignment from Submitted to Approved or Rejected.
-    """
+   
 
     serializer_class = AssignmentSerializer
     permission_classes = [permissions.IsAuthenticated]
